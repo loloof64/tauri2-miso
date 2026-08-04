@@ -13,6 +13,7 @@ CABAL_WASM_ARGS := --allow-newer=base,template-haskell --with-compiler=wasm32-wa
 SHELL := /bin/bash
 
 build:
+	source ~/.ghcup/env
 	source ~/.ghc-wasm/env
 	$(WASM_CABAL) build $(CABAL_WASM_ARGS) app
 	rm -rf public
@@ -25,10 +26,12 @@ serve:
 	bunx http-server public -p 8080 -c-1
 
 watch:
+	source ~/.ghcup/env
 	source ~/.ghc-wasm/env
 	ghciwatch --after-startup-ghci :main --after-reload-ghci :main --watch app --watch src --debounce 50ms --command '$(WASM_CABAL) repl $(CABAL_WASM_ARGS) app -finteractive --repl-options="-fghci-browser -fghci-browser-port=8080"'
 
 test:
+	source ~/.ghcup/env
 	cabal test greet-spec
 
 clean:
