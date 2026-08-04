@@ -1,0 +1,4 @@
+dist-newstyle/
+public/
+*.hi
+*.o

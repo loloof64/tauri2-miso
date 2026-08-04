@@ -5,9 +5,9 @@
   "identifier": "com.loloof64.tauri2-miso",
   "build": {
     "beforeDevCommand": "bun run dev",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://localhost:8080",
     "beforeBuildCommand": "bun run build",
-    "frontendDist": "../dist"
+    "frontendDist": "../frontend/public"
   },
   "app": {
     "windows": [

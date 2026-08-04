@@ -1,6 +1,6 @@
-# Tauri 2 + React + Miso project template
+# Tauri 2 + Miso project template
 
-A Tauri 2, React and Miso (haskell-like language) template.
+A Tauri 2, and Miso (haskell-like language + elm-like views) template.
 
 ## For developers
 
@@ -20,9 +20,9 @@ This project uses [Husky](https://typicode.github.io/husky/) with a `commit-msg`
 
 Allowed types:
 
-| Emoji | Type       | Description                                                      |
-| ----- | ---------- | ----------------------------------------------------------------- |
-| 🏗️    | `build`    | Changes to the build system or external dependencies              |
+| Emoji | Type       | Description                                                        |
+| ----- | ---------- | ------------------------------------------------------------------ |
+| 🏗️    | `build`    | Changes to the build system or external dependencies               |
 | 🧹    | `chore`    | Maintenance tasks that don't affect src or test files              |
 | ⚙️    | `ci`       | Changes to CI configuration and scripts                            |
 | 📚    | `docs`     | Documentation only changes                                         |
