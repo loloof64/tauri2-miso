@@ -24,20 +24,19 @@ A Tauri 2, and Miso (haskell-like language + elm-like views) template.
 
   This step also pulls in Node.js, `wasi-sdk`, `wasmtime` and `binaryen` under `~/.ghc-wasm/` (used internally by the build, e.g. for Template Haskell support and `post-link.mjs`) — no need to install these separately. `frontend/Makefile` sources `~/.ghc-wasm/env` itself, so it doesn't need to already be on `PATH` in your shell.
 
+  > [!NOTE]
+  > On Windows, run the bootstrap inside **WSL** (e.g. `wsl -d Ubuntu-24.04`), not PowerShell or Git Bash — the script assumes a real Linux/macOS environment and fails partway through under MSYS (Git Bash). On a fresh Ubuntu WSL install, also install the packages the script shells out to before running it: `sudo apt-get install -y jq unzip zstd`.
+
 - **Git** — required for Cabal to fetch Miso's source from its repository on first build.
 
 > [!NOTE]
 > The wasm toolchain bootstrap downloads several hundred MB and the GHC wasm backend itself is a few GB once installed; the very first `frontend` build (native or wasm) also compiles all Haskell dependencies from source, so expect it to take a while.
 
+- install dependencies : `bun install`
+
+- run Tauri in dev mode : `bun run tauri dev` or `bun run tauri android dev`
+
 - Don't forget to run `bun run tauri android init` if you're targeting Android (`bun run tauri ios init` for IOS.)
-
-## For developers
-
-With your package manager
-
-1. install dependencies : `bun install`
-
-2. run Tauri in dev mode : `bun run tauri dev` or `bun run tauri android dev`
 
 ### Building
 
