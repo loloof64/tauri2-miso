@@ -4,9 +4,27 @@ A Tauri 2, and Miso (haskell-like language + elm-like views) template.
 
 ## Prerequisites
 
-- **Rust + platform webview deps** — follow the official [Tauri prerequisites guide](https://v2.tauri.app/start/prerequisites/) for your OS (Rust via [rustup](https://rustup.rs), plus WebView2 on Windows / webkit2gtk on Linux / Xcode on macOS).
-- **[Bun](https://bun.sh)** — used to run the project scripts and the Tauri CLI.
+> [!NOTE]
+> **On Windows, do all of this inside WSL** (e.g. `wsl -d Ubuntu-24.04`), not PowerShell or Git Bash. `frontend/Makefile` expects a real bash environment with GHC/Cabal/the wasm toolchain under the same `~` — and the wasm bootstrap script below fails partway through under Git Bash/MSYS (`WASI_SDK: unbound variable`). Run `bun run tauri dev`/`build` from the same WSL shell too, so it picks up the same toolchain the Makefile uses.
+
+- **Rust + platform webview deps** — follow the official [Tauri prerequisites guide](https://v2.tauri.app/start/prerequisites/) for your OS (Rust via [rustup](https://rustup.rs), plus WebView2 on Windows / webkit2gtk on Linux / Xcode on macOS). On Windows/WSL, install the Linux set (webkit2gtk, not WebView2 — see note above):
+
+  ```bash
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf libgtk-3-dev libssl-dev libayatana-appindicator3-dev
+  ```
+
+  (Don't also install `libappindicator3-dev` — it conflicts with `libayatana-appindicator3-dev`.) On WSL2, the app window displays through WSLg automatically, no extra setup needed.
+
+- **[Bun](https://bun.sh)** — used to run the project scripts and the Tauri CLI. Also requires a regular **Node.js** on `PATH` (`sudo apt-get install -y nodejs`) — some CLI packages (e.g. `@tauri-apps/cli`) run under Node under the hood, and its native `.node` bindings won't load under the minimal Node.js bundled with the wasm toolchain below (`~/.ghc-wasm/nodejs`). Make sure that one doesn't shadow it on `PATH`.
 - **GHC + Cabal (native)** — used to build and test the Haskell business logic in `frontend/` outside of the browser (`cabal test`). Install via [GHCup](https://www.haskell.org/ghcup/): GHC ≥ 9.10.1 (with TemplateHaskell support) and Cabal ≥ 3.15.
+
+  ```bash
+  curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 sh
+  ```
+
+  On a fresh Ubuntu install (including WSL), GHCup needs these system packages to compile GHC from source: `sudo apt-get install -y build-essential libffi-dev libffi8 libgmp-dev libgmp10 libncurses-dev pkg-config`.
+
 - **GHC WebAssembly backend (`wasm32-wasi`)** — cross-compiles the Miso frontend to the `.wasm` artifact actually loaded by the Tauri webview. Not installed by GHCup alone; bootstrap it via [`ghc-wasm-meta`](https://gitlab.haskell.org/haskell-wasm/ghc-wasm-meta) (ghcup-based, no Nix required):
 
   ```bash
@@ -22,10 +40,10 @@ A Tauri 2, and Miso (haskell-like language + elm-like views) template.
   ghcup install cabal 3.14.2.0
   ```
 
-  This step also pulls in Node.js, `wasi-sdk`, `wasmtime` and `binaryen` under `~/.ghc-wasm/` (used internally by the build, e.g. for Template Haskell support and `post-link.mjs`) — no need to install these separately. `frontend/Makefile` sources `~/.ghc-wasm/env` itself, so it doesn't need to already be on `PATH` in your shell.
+  This step also pulls in Node.js, `wasi-sdk`, `wasmtime` and `binaryen` under `~/.ghc-wasm/` (used internally by the build, e.g. for Template Haskell support and `post-link.mjs`) — no need to install these separately. `frontend/Makefile` sources `~/.ghc-wasm/env` itself, so it doesn't need to already be on `PATH` in your shell. The bootstrap script itself shells out to `jq`, `unzip` and `zstd`, which aren't on a fresh Ubuntu install: `sudo apt-get install -y jq unzip zstd`.
 
-  > [!NOTE]
-  > On Windows, run the bootstrap inside **WSL** (e.g. `wsl -d Ubuntu-24.04`), not PowerShell or Git Bash — the script assumes a real Linux/macOS environment and fails partway through under MSYS (Git Bash). On a fresh Ubuntu WSL install, also install the packages the script shells out to before running it: `sudo apt-get install -y jq unzip zstd`.
+  > [!WARNING]
+  > The bootstrap script appends `source ~/.ghc-wasm/env` to your `~/.bashrc`. Remove that line (or comment it out) — it puts the bundled minimal Node.js first on `PATH` for every shell, which lacks native-addon (napi) support and breaks `bun`/`npm` packages with native bindings (e.g. `@tauri-apps/cli` fails with `Dynamic loading not supported`). The Makefile already sources this file itself when it actually needs it.
 
 - **Git** — required for Cabal to fetch Miso's source from its repository on first build.
 
