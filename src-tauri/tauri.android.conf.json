@@ -1,0 +1,6 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "build": {
+    "beforeDevCommand": "adb reverse tcp:8080 tcp:8080 && bun run dev"
+  }
+}

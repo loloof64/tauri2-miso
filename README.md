@@ -4,7 +4,7 @@ A Tauri 2, and Miso (haskell-like language + elm-like views) template.
 
 ## Prerequisites
 
-- **Rust + platform webview deps** — follow the official [Tauri prerequisites guide](https://v2.tauri.app/start/prerequisites/) for your OS (Rust via [rustup](https://rustup.rs), plus WebView2 on Windows / webkit2gtk on Linux / Xcode on macOS).
+- **Rust + platform webview deps** — follow the official [Tauri prerequisites guide](https://v2.tauri.app/start/prerequisites/) for your OS (Rust via [rustup](https://rustup.rs), plus WebView2 on Windows / webkit2gtk on Linux / Xcode on macOS). Do't forget to run `bun run tauri android init` if you're targeting Android (`bun run tauri ios init` for IOS.)
 - **[Bun](https://bun.sh)** — used to run the project scripts and the Tauri CLI.
 - **GHC + Cabal (native)** — used to build and test the Haskell business logic in `frontend/` outside of the browser (`cabal test`). Install via [GHCup](https://www.haskell.org/ghcup/): GHC ≥ 9.10.1 (with TemplateHaskell support) and Cabal ≥ 3.15.
 - **GHC WebAssembly backend (`wasm32-wasi`)** — cross-compiles the Miso frontend to the `.wasm` artifact actually loaded by the Tauri webview. Not installed by GHCup alone; bootstrap it via [`ghc-wasm-meta`](https://gitlab.haskell.org/haskell-wasm/ghc-wasm-meta) (ghcup-based, no Nix required):
