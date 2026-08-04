@@ -35,7 +35,12 @@ With your package manager
 
 1. install dependencies : `bun install`
 
-2. run Tauri in dev mode : `bun run Tauri dev`
+2. run Tauri in dev mode : `bun run tauri dev` or `bun run tauri android dev`
+
+### Building
+
+- `bun run tauri build`
+- `bun run tauri android build`
 
 ### Commit messages
 
