@@ -178,6 +178,12 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-22.04
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            Release_message.md
+          sparse-checkout-cone-mode: false
+
       - uses: actions/download-artifact@v4
         with:
           name: linux-appimage
@@ -190,4 +196,5 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          body_path: Release_message.md
           files: dist/*
