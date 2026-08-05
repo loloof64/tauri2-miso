@@ -22,3 +22,16 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Claude Code local/runtime state (keep settings.json, commands/, agents/, skills/ shared)
+.claude/settings.local.json
+.claude/*.lock
+.claude/scheduled_tasks.json
+.claude/agent-registry.json
+.claude/assistant-daemon-state.json
+.claude/first-run
+.claude/checkpoints/
+.claude/mailbox/
+.claude/worktrees/
+.claude/routines/.state/
+.claude/agent-memory-local/
