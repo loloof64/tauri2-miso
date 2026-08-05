@@ -22,6 +22,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The ubuntu runner image ships a preinstalled GHCup at
+      # /usr/local/.ghcup (root-owned) and points GHCUP_INSTALL_BASE_PREFIX/
+      # CABAL_DIR there, which makes our from-scratch install fail with a
+      # permissions error. Redirect both to $HOME so they land in ~/.ghcup
+      # (matching the cache path above) and stay writable by the runner user.
+      - name: Redirect GHCup/cabal install location to $HOME
+        run: |
+          echo "GHCUP_INSTALL_BASE_PREFIX=$HOME" >> "$GITHUB_ENV"
+          echo "CABAL_DIR=$HOME/.cabal" >> "$GITHUB_ENV"
+
       - name: Install GHC/wasm build prerequisites
         run: |
           sudo apt-get update
