@@ -1,18 +1,18 @@
-# Interop JS / paquets npm graphiques depuis Miso (wasm32-wasi)
+# JS / npm UI package interop from Miso (wasm32-wasi)
 
-Ce guide documente comment intégrer une bibliothèque JS tierce (widget
-graphique, éditeur, carte, etc.) dans le frontend Haskell/Miso de ce projet,
-et pourquoi une classe entière de mécanismes Miso est à éviter sur notre
-toolchain de compilation.
+This guide documents how to integrate a third-party JS library (graphical
+widget, editor, map, etc.) into this project's Haskell/Miso frontend, and
+why an entire class of Miso mechanisms must be avoided on our build
+toolchain.
 
-Exemple de référence : l'intégration de
-[cm-chessboard](https://github.com/shaack/cm-chessboard) dans
-`frontend/app/Main.hs` (branche `sample-chessboard`).
+Reference example: the integration of
+[cm-chessboard](https://github.com/shaack/cm-chessboard) in
+`frontend/app/Main.hs` (branch `sample-chessboard`).
 
-## Le piège : Template Haskell casse la compilation wasm32-wasi
+## The trap: Template Haskell breaks the wasm32-wasi build
 
-Le build (`make build`, via `wasm32-wasi-ghc` / `wasm32-wasi-cabal`) échoue
-avec une erreur du style :
+The build (`make build`, via `wasm32-wasi-ghc` / `wasm32-wasi-cabal`) fails
+with an error like:
 
 ```
 Assertion failed: findSystemLibrary(libHSapp-0.1.0.0-inplace-greet-core.so): not found in ...
@@ -22,66 +22,67 @@ During interactive linking, GHCi couldn't find the following symbol:
   closure:js
 ```
 
-**Cause** : certains mécanismes de Miso reposent sur *Template Haskell*
-(quasi-quotation ou génération de code). Même quand l'expansion ne fait que
-construire un AST, GHC doit **exécuter le code compilé du générateur
-pendant la compilation**, via son interpréteur bytecode interne (GHCi). Sur
-la cible wasm32-wasi, cela nécessite que le linker dynamique (`dyld.mjs`)
-charge les bibliothèques du projet (y compris les sous-librairies internes
-comme `greet-core`) — et ce chargement échoue actuellement.
+**Cause**: certain Miso mechanisms rely on *Template Haskell* (quasi-
+quotation or code generation). Even when the expansion only builds an AST,
+GHC must **execute the generator's compiled code during compilation**, via
+its internal bytecode interpreter (GHCi). On the wasm32-wasi target, that
+requires the dynamic linker (`dyld.mjs`) to load the project's libraries
+(including internal sub-libraries like `greet-core`) — and that load
+currently fails.
 
-**Ce n'est donc pas un problème d'utiliser un paquet npm** — c'est un
-problème avec trois modules Miso précis, tous marqués
-`{-# LANGUAGE TemplateHaskellQuotes #-}` :
+**So this is not a problem with using an npm package** — it's a problem
+with three specific Miso modules, all marked
+`{-# LANGUAGE TemplateHaskellQuotes #-}`:
 
-| Module | Fonctionnalité | À la place |
+| Module | Feature | Use instead |
 |---|---|---|
-| `Miso.FFI.QQ` | quasi-quoteur `[js\| ... \|]` | `Miso.FFI.inline` / `Miso.DSL.eval` (fonctions normales) |
-| `Miso.Lens.TH` | `makeLenses` | lenses écrites à la main (voir `name`/`greeting` dans `Main.hs`) |
-| `Miso.String.QQ` | quasi-quoteur de strings | littéraux `MisoString` classiques (`OverloadedStrings`) |
+| `Miso.FFI.QQ` | `[js\| ... \|]` quasi-quoter | `Miso.FFI.inline` / `Miso.DSL.eval` (plain functions) |
+| `Miso.Lens.TH` | `makeLenses` | hand-written lenses (see `name`/`greeting` in `Main.hs`) |
+| `Miso.String.QQ` | string quasi-quoter | plain `MisoString` literals (`OverloadedStrings`) |
 
-**Ce qui fonctionne normalement**, car ce ne sont pas des mécanismes TH :
+**What works normally**, since these are not TH mechanisms:
 
-- Le DSL bas niveau `Miso.DSL` (`new`, `jsg`, `createWith`, `(#)`, `(!)`, `eval`)
-- `Miso.FFI.inline` / `Miso.FFI.eval` — fonctions ordinaires, exécutées
-  uniquement dans le navigateur au runtime
-- `deriving (Generic)` + `deriving anyclass (ToJSVal, FromJSVal)` — repose
-  sur `GHC.Generics`, un mécanisme distinct de TH, compilé normalement
+- The low-level `Miso.DSL` (`new`, `jsg`, `createWith`, `(#)`, `(!)`, `eval`)
+- `Miso.FFI.inline` / `Miso.FFI.eval` — plain functions, executed only in
+  the browser at runtime
+- `deriving (Generic)` + `deriving anyclass (ToJSVal, FromJSVal)` — relies
+  on `GHC.Generics`, a mechanism distinct from TH, compiled normally
 
-## Recette générale pour intégrer un widget JS/npm
+## General recipe for integrating a JS/npm widget
 
-1. **Vendoriser le JS**, plutôt que de dépendre d'un bundler (le projet n'en
-   a pas) :
+1. **Vendor the JS**, rather than depending on a bundler (the project
+   doesn't have one):
    ```
-   frontend/static/vendor/<paquet>/
-     src/       (ou le build ESM du paquet)
+   frontend/static/vendor/<package>/
+     src/       (or the package's ESM build)
      assets/    (CSS, sprites, etc.)
    ```
-   Copier depuis `node_modules/<paquet>` après `bun add -d <paquet>` (garde
-   la dépendance npm dans `package.json` pour tracer la version, même si le
-   code Haskell ne passe jamais par `node_modules` à l'exécution).
+   Copy from `node_modules/<package>` after `bun add -d <package>` (keep
+   the npm dependency in `package.json` to track the version, even though
+   the Haskell code never touches `node_modules` at runtime).
 
-2. **Exposer un global** depuis `frontend/static/index.js` (module ES déjà
-   chargé par la page), puisqu'il n'y a pas de bundler côté Haskell :
+2. **Expose a global** from `frontend/static/index.js` (the ES module
+   already loaded by the page), since there's no bundler on the Haskell
+   side:
    ```js
-   import { MonWidget } from "./vendor/<paquet>/src/Entrée.js";
-   window.MonWidget = MonWidget;
+   import { MyWidget } from "./vendor/<package>/src/Entry.js";
+   window.MyWidget = MyWidget;
    ```
 
-3. **Charger le CSS** du paquet via le champ `styles` du `Component` Miso
-   (`Href`/`Style`), pas via un `<link>` statique dans `index.html` :
+3. **Load the CSS** via the `styles` field of the Miso `Component`
+   (`Href`/`Style`), not via a static `<link>` in `index.html`:
    ```haskell
    app = (component emptyModel updateModel viewModel)
-     { styles = [ Href "/vendor/<paquet>/assets/style.css" False ] }
+     { styles = [ Href "/vendor/<package>/assets/style.css" False ] }
    ```
 
-4. **Point de montage** : un élément avec `onCreated`/`onCreatedWith` pour
-   déclencher l'initialisation une fois le nœud DOM réellement inséré :
+4. **Mount point**: an element with `onCreated`/`onCreatedWith` to trigger
+   initialization once the DOM node actually exists:
    ```haskell
-   H.div_ [ P.id_ "mon-widget", onCreated WidgetMounted ] []
+   H.div_ [ P.id_ "my-widget", onCreated WidgetMounted ] []
    ```
 
-5. **Instancier** via `inline` (jamais `[js\| \|]`) :
+5. **Instantiate** via `inline` (never `[js\| \|]`):
    ```haskell
    initWidget :: IO ()
    initWidget = do
@@ -90,27 +91,26 @@ problème avec trois modules Miso précis, tous marqués
      where
        widgetInitJS :: MisoString
        widgetInitJS = ms $ unlines
-         [ "var el = document.getElementById(\"mon-widget\");"
+         [ "var el = document.getElementById(\"my-widget\");"
          , "if (el && !el.dataset.mounted) {"
          , "  el.dataset.mounted = \"true\";"
-         , "  new window.MonWidget(el, { /* options */ });"
+         , "  new window.MyWidget(el, { /* options */ });"
          , "}"
          ]
    ```
-   Le garde `dataset.mounted` évite une double instanciation si
-   `onCreated` est redéclenché (rechargement à chaud, etc.).
+   The `dataset.mounted` guard avoids double instantiation if `onCreated`
+   fires again (hot reload, etc.).
 
-6. **Remonter les événements JS → Haskell**, si le widget est interactif :
-   utiliser `syncCallback`/`asyncCallback` (`Miso.DSL`) pour transformer un
-   callback JS (`.on("event", cb)`) en `Sink action`, qui dispatch une
-   `Action` Miso.
+6. **Forward JS events back to Haskell**, if the widget is interactive: use
+   `syncCallback`/`asyncCallback` (`Miso.DSL`) to turn a JS callback
+   (`.on("event", cb)`) into a `Sink action`, dispatching a Miso `Action`.
 
-7. **Nettoyage** : si le composant peut être démonté dynamiquement, utiliser
-   `onDestroyed` pour appeler `.destroy()` côté JS et éviter les fuites
+7. **Cleanup**: if the component can be unmounted dynamically, use
+   `onDestroyed` to call `.destroy()` on the JS side and avoid leaks
    (listeners, observers, etc.).
 
-## Voir aussi
+## See also
 
-- `frontend/app/Main.hs` — intégration complète de cm-chessboard suivant
-  cette recette (affichage seul, sans coups interactifs pour l'instant).
-- `frontend/static/index.js` — exposition du global `window.Chessboard`.
+- `frontend/app/Main.hs` — full cm-chessboard integration following this
+  recipe (display only, no interactive moves yet).
+- `frontend/static/index.js` — exposing the `window.Chessboard` global.
