@@ -1,5 +1,11 @@
 import { WASI, OpenFile, File, ConsoleStdout } from "./vendor/browser_wasi_shim/index.js";
+import { Chessboard } from "./vendor/cm-chessboard/src/Chessboard.js";
 import ghc_wasm_jsffi from "./ghc_wasm_jsffi.js";
+
+// Exposed as a global so the Haskell/Miso side can instantiate it via
+// inline JS (see `initChessboard` in app/Main.hs) without needing its own
+// module bundler.
+window.Chessboard = Chessboard;
 
 const args = [];
 const env = ["GHCRTS=-H64m"];
