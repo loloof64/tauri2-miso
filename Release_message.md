@@ -1,3 +1,4 @@
 # Changes
 
-- Fix window error message for the Windows Version.
+- Integrate cm-chessboard of NPM registry
+- Add documentation for NPM graphical package integration
