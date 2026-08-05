@@ -178,7 +178,12 @@ jobs:
         # already populated (downloaded above), and tauri-build's build.rs
         # embeds it + the .exe icon/manifest at compile time — no bundler
         # step or Node/bun needed for a portable build.
-        run: cargo build --release --target x86_64-pc-windows-msvc --manifest-path src-tauri/Cargo.toml
+        #
+        # tauri/custom-protocol is what the tauri CLI adds behind the scenes
+        # for a production build; without it generate_context!() builds a dev
+        # context and the app loads devUrl (localhost:8080) instead of the
+        # embedded frontendDist, showing a connection-refused page.
+        run: cargo build --release --features tauri/custom-protocol --target x86_64-pc-windows-msvc --manifest-path src-tauri/Cargo.toml
 
       - name: Collect artifact
         shell: pwsh

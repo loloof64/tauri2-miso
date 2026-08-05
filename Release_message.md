@@ -1,3 +1,3 @@
 # Changes
 
-- First published version
+- Fix window error message for the Windows Version.
