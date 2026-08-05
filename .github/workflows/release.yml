@@ -26,11 +26,21 @@ jobs:
       # /usr/local/.ghcup (root-owned) and points GHCUP_INSTALL_BASE_PREFIX/
       # CABAL_DIR there, which makes our from-scratch install fail with a
       # permissions error. Redirect both to $HOME so they land in ~/.ghcup
-      # (matching the cache path above) and stay writable by the runner user.
+      # (the path the Makefile and the cache below both expect) and stay
+      # writable by the runner user.
       - name: Redirect GHCup/cabal install location to $HOME
         run: |
           echo "GHCUP_INSTALL_BASE_PREFIX=$HOME" >> "$GITHUB_ENV"
           echo "CABAL_DIR=$HOME/.cabal" >> "$GITHUB_ENV"
+
+      # The image also leaves root-owned entries at ~/.ghcup / ~/.cabal
+      # (symlinks into /usr/local/.ghcup), so installing over them fails with
+      # "chmod: Operation not permitted". Clear them so the toolchain lands in
+      # real, runner-owned directories — the Makefile hardcodes ~/.ghcup, so
+      # this path can't just be moved elsewhere. Runs before any cache
+      # restore, so it only ever deletes what the image preinstalled.
+      - name: Remove preinstalled root-owned GHCup/cabal paths
+        run: sudo rm -rf "$HOME/.ghcup" "$HOME/.ghc-wasm" "$HOME/.cabal"
 
       - name: Install GHC/wasm build prerequisites
         run: |
