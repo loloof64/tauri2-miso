@@ -1,0 +1,193 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # Builds the Miso/Haskell frontend to WebAssembly once, on Linux (the wasm
+  # toolchain only works there — see README). Both platform jobs below reuse
+  # this output instead of re-bootstrapping the (large, slow) toolchain.
+  build-frontend:
+    runs-on: ubuntu-22.04
+    env:
+      # Bump to invalidate the toolchain cache below after changing any of
+      # the pinned versions in the steps that populate it.
+      WASM_TOOLCHAIN_CACHE_KEY: wasm-toolchain-v1-ghcup-cabal3.14.2.0-wasm32-wasi-9.14-ghc-wasm-meta0.0.9
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GHC/wasm build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libffi-dev libffi8 libgmp-dev libgmp10 libncurses-dev pkg-config jq unzip zstd
+
+      # ~/.ghcup and ~/.ghc-wasm hold GHCup itself, the wasm32-wasi GHC
+      # build, cabal 3.14.2.0, and the wasi-sdk/wasmtime/binaryen/node
+      # bundle pulled in by ghc-wasm-meta — several GB, much of it compiled
+      # from source. This is by far the slowest part of the whole workflow,
+      # so it's cached wholesale and only rebuilt when the key above changes.
+      - name: Cache GHCup + GHC wasm toolchain
+        id: cache-wasm-toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.ghcup
+            ~/.ghc-wasm
+          key: ${{ env.WASM_TOOLCHAIN_CACHE_KEY }}
+
+      - name: Install GHCup
+        if: steps.cache-wasm-toolchain.outputs.cache-hit != 'true'
+        run: curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | BOOTSTRAP_HASKELL_NONINTERACTIVE=1 sh
+
+      - name: Bootstrap GHC wasm32-wasi toolchain
+        if: steps.cache-wasm-toolchain.outputs.cache-hit != 'true'
+        run: |
+          curl https://gitlab.haskell.org/haskell-wasm/ghc-wasm-meta/-/raw/master/bootstrap.sh | SKIP_GHC=1 sh
+          source ~/.ghc-wasm/env
+          ~/.ghcup/bin/ghcup config add-release-channel https://gitlab.haskell.org/haskell-wasm/ghc-wasm-meta/-/raw/master/ghcup-wasm-0.0.9.yaml
+          ~/.ghcup/bin/ghcup install ghc --set wasm32-wasi-9.14 -- --host=x86_64-linux --target=wasm32-wasi --with-intree-gmp --with-system-libffi
+          ~/.ghcup/bin/ghcup install cabal 3.14.2.0
+
+      - name: Add GHCup to PATH
+        run: echo "$HOME/.ghcup/bin" >> "$GITHUB_PATH"
+
+      # Caches cabal's downloaded package index/store plus the project's own
+      # compiled dependencies (dist-newstyle), so unchanged Haskell deps
+      # aren't rebuilt from source on every run (README notes this can take
+      # a while on a cold cache).
+      - name: Cache cabal packages + build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cabal
+            ~/.local/state/cabal
+            ~/.cache/cabal
+            frontend/dist-newstyle
+          key: cabal-wasm-v1-${{ env.WASM_TOOLCHAIN_CACHE_KEY }}-${{ hashFiles('frontend/app.cabal', 'frontend/cabal.project') }}
+          restore-keys: |
+            cabal-wasm-v1-${{ env.WASM_TOOLCHAIN_CACHE_KEY }}-
+
+      - name: Build frontend
+        run: cd frontend && make build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/public
+          retention-days: 1
+
+  build-linux:
+    needs: build-frontend
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/public
+
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf libgtk-3-dev libssl-dev libayatana-appindicator3-dev xdg-utils libfuse2
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # Tauri's AppImage bundler downloads linuxdeploy + its gtk/gstreamer/
+      # appimage plugins into ~/.cache/tauri on first use; cache it so
+      # repeat runs don't re-download them.
+      - name: Cache Tauri AppImage bundler tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/tauri
+          key: tauri-linuxdeploy-v1-${{ runner.os }}
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+
+      - name: Build AppImage
+        # frontend/public was already built by build-frontend, so the
+        # normal beforeBuildCommand (which needs the GHC wasm toolchain) is
+        # replaced with a no-op here.
+        run: |
+          bun run tauri build --bundles appimage --config '{"build":{"beforeBuildCommand":"true"}}'
+
+      - name: Collect artifact
+        run: |
+          mkdir -p out
+          cp src-tauri/target/release/bundle/appimage/*.AppImage "out/tauri2-miso-${GITHUB_REF_NAME}-linux-x86_64.AppImage"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: out/*.AppImage
+
+  build-windows:
+    needs: build-frontend
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/public
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Build Windows binary
+        # Built with plain cargo, not the tauri CLI: frontend/public is
+        # already populated (downloaded above), and tauri-build's build.rs
+        # embeds it + the .exe icon/manifest at compile time — no bundler
+        # step or Node/bun needed for a portable build.
+        run: cargo build --release --target x86_64-pc-windows-msvc --manifest-path src-tauri/Cargo.toml
+
+      - name: Collect artifact
+        shell: pwsh
+        run: |
+          $dist = "src-tauri/target/x86_64-pc-windows-msvc/release"
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          $files = @("$dist/tauri2-miso.exe") + (Get-ChildItem "$dist/*.dll" -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+          Compress-Archive -Path $files -DestinationPath "out/tauri2-miso-$env:GITHUB_REF_NAME-windows-x86_64.zip" -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: out/*.zip
+
+  release:
+    needs: [build-linux, build-windows]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-appimage
+          path: dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-zip
+          path: dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
