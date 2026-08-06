@@ -54,7 +54,9 @@ A Tauri 2, and Miso (haskell-like language + elm-like views) template.
 
 - run Tauri in dev mode : `bun run tauri dev` or `bun run tauri android dev`
 
-- Don't forget to run `bun run tauri android init` if you're targeting Android (`bun run tauri ios init` for IOS.)
+1. install dependencies : `bun install`
+
+2. run Tauri in dev mode : `bun run tauri dev` or `bun run android:dev`
 
 ### Building
 
